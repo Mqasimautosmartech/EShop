@@ -1,0 +1,97 @@
+# azure-pipelines.yml
+trigger:
+  branches:
+    include:
+      - main  # or master
+
+variables:
+  buildConfiguration: 'Release'
+  dotnetVersion: '10.0.x'   # Use .NET 10 SDK
+  nodeVersion: '20.x'
+
+stages:
+
+# -------------------
+# Stage 1: Build .NET 10 APIs
+# -------------------
+- stage: Build_Backend
+  displayName: "Build Backend APIs (.NET 10)"
+  jobs:
+    - job: Build_CatalogAPI
+      displayName: "Build CatalogAPI"
+      pool:
+        vmImage: 'windows-latest'
+      steps:
+        - task: UseDotNet@2
+          inputs:
+            packageType: 'sdk'
+            version: $(dotnetVersion)
+        - script: |
+            cd EShopServer/EShopAPIs/CatalogAPI
+            dotnet restore
+            dotnet build --configuration $(buildConfiguration)
+            dotnet publish -c $(buildConfiguration) -o $(Build.ArtifactStagingDirectory)/CatalogAPI
+          displayName: "Restore, Build and Publish CatalogAPI"
+        - publish: $(Build.ArtifactStagingDirectory)/CatalogAPI
+          artifact: CatalogAPI
+
+    - job: Build_ProductAPI
+      displayName: "Build ProductAPI"
+      pool:
+        vmImage: 'windows-latest'
+      steps:
+        - task: UseDotNet@2
+          inputs:
+            packageType: 'sdk'
+            version: $(dotnetVersion)
+        - script: |
+            cd EShopServer/EShopAPIs/ProductAPI
+            dotnet restore
+            dotnet build --configuration $(buildConfiguration)
+            dotnet publish -c $(buildConfiguration) -o $(Build.ArtifactStagingDirectory)/ProductAPI
+          displayName: "Restore, Build and Publish ProductAPI"
+        - publish: $(Build.ArtifactStagingDirectory)/ProductAPI
+          artifact: ProductAPI
+
+    - job: Build_UserAPI
+      displayName: "Build UserAPI"
+      pool:
+        vmImage: 'windows-latest'
+      steps:
+        - task: UseDotNet@2
+          inputs:
+            packageType: 'sdk'
+            version: $(dotnetVersion)
+        - script: |
+            cd EShopServer/EShopAPIs/UserAPI
+            dotnet restore
+            dotnet build --configuration $(buildConfiguration)
+            dotnet publish -c $(buildConfiguration) -o $(Build.ArtifactStagingDirectory)/UserAPI
+          displayName: "Restore, Build and Publish UserAPI"
+        - publish: $(Build.ArtifactStagingDirectory)/UserAPI
+          artifact: UserAPI
+
+# -------------------
+# Stage 2: Build Next.js Frontend
+# -------------------
+- stage: Build_Frontend
+  displayName: "Build Next.js App"
+  dependsOn: Build_Backend
+  jobs:
+    - job: Build_Next
+      pool:
+        vmImage: 'ubuntu-latest'
+      steps:
+        - task: NodeTool@0
+          inputs:
+            versionSpec: $(nodeVersion)
+          displayName: 'Install Node.js'
+
+        - script: |
+            cd ClientApp/e-shop-portal
+            npm install
+            npm run build
+          displayName: 'Install Dependencies and Build Next.js'
+
+        - publish: ClientApp/e-shop-portal/.next
+          artifact: NextApp_Build
